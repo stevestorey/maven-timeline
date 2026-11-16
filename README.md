@@ -67,7 +67,34 @@ The workflow needs these secrets in the `maven-central-release` environment
 
 ## Adding it to a project
 
-Copy the jar into the project's `.mvn/ext` directory and add this line to `.mvn/maven.config`:
+The extension is on Maven Central as `io.github.stevestorey.maven:maven-timeline`. To use it in a
+project, add it to the project's `.mvn/extensions.xml`, creating the file if there isn't one:
+
+```xml
+<extensions>
+  <extension>
+    <groupId>io.github.stevestorey.maven</groupId>
+    <artifactId>maven-timeline</artifactId>
+    <version>0.1.0</version>
+  </extension>
+</extensions>
+```
+
+Maven downloads it like any other dependency the next time it runs in that project. It still
+records nothing until it is turned on (see [Turning it on](#turning-it-on)).
+
+### Without changing a project
+
+To try it on a project without touching its files, download the jar from
+[Maven Central](https://repo1.maven.org/maven2/io/github/stevestorey/maven/maven-timeline/0.1.0/maven-timeline-0.1.0.jar),
+or build it yourself, and pass its path on the command line:
+
+```
+mvn verify -Dmaven.ext.class.path=/path/to/maven-timeline-0.1.0.jar -Dbuild.timeline
+```
+
+The jar can also be kept in the project's `.mvn/ext` directory and loaded with this line in
+`.mvn/maven.config`:
 
 ```
 -Dmaven.ext.class.path=${session.rootDirectory}/.mvn/ext/maven-timeline.jar
@@ -76,9 +103,6 @@ Copy the jar into the project's `.mvn/ext` directory and add this line to `.mvn/
 Maven 3 and Maven 4 both expand `${session.rootDirectory}` there, so the extension loads whichever
 directory of the project Maven runs from. `maven.ext.class.path` holds a single path, so a value
 given on the command line may replace this one.
-
-To try it without changing a project, pass the same property on the command line with the jar's
-path.
 
 ## Colour
 
