@@ -35,8 +35,8 @@ jobs:
           cache: maven
           # Writes a settings.xml server "central" that reads the token from these variables
           server-id: central
-          server-username: CENTRAL_TOKEN_USERNAME
-          server-password: CENTRAL_TOKEN_PASSWORD
+          server-username-env-var: CENTRAL_TOKEN_USERNAME
+          server-password-env-var: CENTRAL_TOKEN_PASSWORD
 
       - name: Build, sign and publish ${{ steps.version.outputs.version }}
         env:
