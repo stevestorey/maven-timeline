@@ -119,7 +119,7 @@ The extension records nothing unless one of these properties is set:
 | Property | Effect |
 |---|---|
 | `build.timeline` | Prints the timeline after the build result (`-Dbuild.timeline`) |
-| `build.timeline.trace` | Also writes a Chrome trace to this file, relative to the directory Maven runs from, for viewing in https://ui.perfetto.dev or `chrome://tracing` with a row per builder thread |
+| `build.timeline.trace` | Also writes a Chrome trace to this file, relative to the directory Maven runs from, for viewing in https://ui.perfetto.dev or `chrome://tracing` with a row per builder thread, showing how busy each was and where it sat idle, and a row per project |
 | `build.timeline.width` | The line width. By default it follows the terminal, or 120 columns when the output is not a terminal |
 | `build.timeline.top` | Lists the slowest mojos after the timeline: 10 for `-Dbuild.timeline.top`, or the number given |
 | `build.timeline.color` | `always`, `never` or `auto` (the default), which follows Maven's own colour setting |
