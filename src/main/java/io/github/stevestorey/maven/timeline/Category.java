@@ -11,10 +11,11 @@ import java.util.Set;
  * of {@code process-resources}.
  */
 public enum Category {
-    CLEAN('x', "clean", phases("pre-clean", "clean", "post-clean")),
+    CLEAN('x', "clean", Ansi.WHITE, phases("pre-clean", "clean", "post-clean")),
     COMPILE(
             'c',
             "compile",
+            Ansi.BLUE,
             phases(
                     "validate",
                     "initialize",
@@ -30,6 +31,7 @@ public enum Category {
     TEST_COMPILE(
             'k',
             "test-compile",
+            Ansi.CYAN,
             phases(
                     "test-sources",
                     "generate-test-sources",
@@ -39,20 +41,22 @@ public enum Category {
                     "process-test-resources",
                     "test-compile",
                     "process-test-classes")),
-    TEST('t', "test", phases("test", "unit-test")),
-    PACKAGE('p', "package", phases("prepare-package", "package")),
-    VERIFY('v', "verify", phases("pre-integration-test", "integration-test", "post-integration-test", "verify")),
-    INSTALL('i', "install/deploy", phases("install", "deploy")),
-    SITE('s', "site", phases("pre-site", "site", "post-site", "site-deploy")),
-    OTHER('*', "other", phases());
+    TEST('t', "test", Ansi.GREEN, phases("test", "unit-test")),
+    PACKAGE('p', "package", Ansi.MAGENTA, phases("prepare-package", "package")),
+    VERIFY('v', "verify", Ansi.YELLOW, phases("pre-integration-test", "integration-test", "post-integration-test", "verify")),
+    INSTALL('i', "install/deploy", Ansi.BRIGHT_BLUE, phases("install", "deploy")),
+    SITE('s', "site", Ansi.BRIGHT_MAGENTA, phases("pre-site", "site", "post-site", "site-deploy")),
+    OTHER('*', "other", Ansi.WHITE, phases());
 
     private final char letter;
     private final String label;
+    private final String colour;
     private final Set<String> phases;
 
-    Category(char letter, String label, Set<String> phases) {
+    Category(char letter, String label, String colour, Set<String> phases) {
         this.letter = letter;
         this.label = label;
+        this.colour = colour;
         this.phases = phases;
     }
 
@@ -64,8 +68,22 @@ public enum Category {
         return label;
     }
 
+    /** The ANSI SGR colour code the category is drawn in. */
+    public String colour() {
+        return colour;
+    }
+
     private static Set<String> phases(String... names) {
         return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(names)));
+    }
+
+    static Category ofLetter(char letter) {
+        for (Category category : values()) {
+            if (category.letter == letter) {
+                return category;
+            }
+        }
+        return OTHER;
     }
 
     /**

@@ -62,11 +62,48 @@ class TimelineRendererTest {
     void rendersRowsInStartOrderAndSlowestMojos() {
         var runs = List.of(run("app", "test", 3, 9), run("lib", "compile", 0, 3));
 
-        var lines = TimelineRenderer.render(runs, 10 * S, 60, 1);
+        var lines = TimelineRenderer.render(runs, 10 * S, 60, 1, false);
 
         assertTrue(lines.get(0).startsWith("Build timeline: 10.0 s wall, 1 thread, 2 mojos"), lines.get(0));
-        assertTrue(lines.get(3).startsWith("lib "), lines.get(3));
-        assertTrue(lines.get(4).startsWith("app "), lines.get(4));
+        assertTrue(lines.get(4).startsWith("lib "), lines.get(4));
+        assertTrue(lines.get(5).startsWith("app "), lines.get(5));
         assertEquals("  x:y (test)  app  test    6.0 s", lines.get(lines.size() - 1));
+    }
+
+    @Test
+    void listsSlowestMojosOnlyWhenAsked() {
+        var runs = List.of(run("lib", "compile", 0, 3));
+
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 0, false).stream()
+                .noneMatch(line -> line.contains("Slowest")));
+    }
+
+    @Test
+    void comparesMojoTimeWithElapsedTime() {
+        // 12 s of mojos within 6 s, with three running at once from 2 s to 3 s
+        var runs = List.of(run("a", "test", 0, 6), run("b", "test", 1, 3), run("c", "test", 2, 6));
+
+        assertEquals(
+                "Parallelism: 2.0x on average, peak 3 mojos at once; 12.0 s of mojo time in 6.0 s,"
+                        + " about 6.0 s (50%) less than one at a time",
+                TimelineRenderer.parallelism(runs, new Ansi(false)));
+    }
+
+    @Test
+    void coloursOnlyWhenEnabled() {
+        var runs = List.of(run("lib", "compile", 0, 3));
+
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 1, false).stream()
+                .noneMatch(line -> line.contains("\u001b")));
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 1, true).stream()
+                .allMatch(line -> line.isEmpty() || line.contains("\u001b[")));
+    }
+
+    @Test
+    void coloursEachRunOfABar() {
+        var ansi = new Ansi(true);
+
+        assertEquals(
+                "\u001b[34mcc\u001b[0m\u001b[90m.\u001b[0m\u001b[1;32mT\u001b[0m  ", ansi.bar("cc.T  "));
     }
 }

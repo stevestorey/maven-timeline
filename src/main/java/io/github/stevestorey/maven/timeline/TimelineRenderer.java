@@ -12,10 +12,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Renders mojo executions as text: a row per project across a shared time axis, followed by the slowest
- * mojos.
+ * Renders mojo executions as text: a summary of how much the build gained from running mojos in parallel,
+ * a row per project across a shared time axis and, optionally, the slowest mojos.
  */
 public final class TimelineRenderer {
+
+    static final char IDLE = '.';
+    static final char FAILED = '!';
 
     private static final long NANOS_PER_SECOND = 1_000_000_000L;
     private static final long[] TICK_STEPS_SECONDS = {
@@ -24,8 +27,6 @@ public final class TimelineRenderer {
     private static final int MIN_TICK_SPACING = 8;
     private static final int MAX_NAME_WIDTH = 30;
     private static final int MIN_BAR_WIDTH = 20;
-    private static final char IDLE = '.';
-    private static final char FAILED = '!';
 
     private TimelineRenderer() {}
 
@@ -33,13 +34,15 @@ public final class TimelineRenderer {
      * @param runs the mojo executions, with times relative to the start of the build
      * @param total the length of the build in nanoseconds
      * @param width the number of characters available for each line
-     * @param top the number of slowest mojos to list
+     * @param top the number of slowest mojos to list, or 0 for none
+     * @param colour whether to colour the output with ANSI escape sequences
      */
-    public static List<String> render(List<MojoRun> runs, long total, int width, int top) {
+    public static List<String> render(List<MojoRun> runs, long total, int width, int top, boolean colour) {
         List<String> lines = new ArrayList<>();
         if (runs.isEmpty() || total <= 0) {
             return lines;
         }
+        Ansi ansi = new Ansi(colour);
         Map<String, List<MojoRun>> projects = runs.stream()
                 .sorted(Comparator.comparingLong(MojoRun::start))
                 .collect(Collectors.groupingBy(MojoRun::project, LinkedHashMap::new, Collectors.toList()));
@@ -53,64 +56,113 @@ public final class TimelineRenderer {
         int prefixWidth = nameWidth + 2 + 7 + 2;
         int barWidth = Math.max(MIN_BAR_WIDTH, width - prefixWidth - 2);
 
-        lines.add(String.format(
-                Locale.ROOT,
-                "Build timeline: %s wall, %d %s, %d mojos",
-                seconds(total),
-                threads,
-                threads == 1 ? "thread" : "threads",
-                runs.size()));
-        lines.add(legend(runs));
-        lines.add(spaces(prefixWidth + 1) + axis(total, barWidth));
+        lines.add(ansi.paint("Build timeline:", Ansi.BOLD)
+                + String.format(
+                        Locale.ROOT,
+                        " %s wall, %d %s, %d mojos",
+                        seconds(total),
+                        threads,
+                        threads == 1 ? "thread" : "threads",
+                        runs.size()));
+        lines.add(parallelism(runs, ansi));
+        lines.add(legend(runs, ansi));
+        lines.add(spaces(prefixWidth + 1) + ansi.paint(axis(total, barWidth), Ansi.DIM));
+        String border = ansi.paint("|", Ansi.DIM);
         projects.forEach((project, projectRuns) -> {
             long start = projectRuns.stream().mapToLong(MojoRun::start).min().orElse(0);
             long end = projectRuns.stream().mapToLong(MojoRun::end).max().orElse(0);
-            lines.add(pad(abbreviate(project, nameWidth), nameWidth)
+            boolean failed = projectRuns.stream().anyMatch(MojoRun::failed);
+            lines.add(ansi.paint(pad(abbreviate(project, nameWidth), nameWidth), failed ? Ansi.RED : Ansi.BOLD)
                     + "  "
                     + String.format(Locale.ROOT, "%7s", seconds(end - start))
-                    + "  |"
-                    + bar(projectRuns, start, end, total, barWidth)
-                    + "|");
+                    + "  "
+                    + border
+                    + ansi.bar(bar(projectRuns, start, end, total, barWidth))
+                    + border);
         });
 
         if (top > 0) {
-            List<MojoRun> slowest = runs.stream()
-                    .sorted(Comparator.comparingLong(MojoRun::duration).reversed())
-                    .limit(top)
-                    .collect(Collectors.toList());
-            int mojoWidth =
-                    slowest.stream().mapToInt(run -> run.mojo().length()).max().orElse(0);
-            int projectWidth = slowest.stream()
-                    .mapToInt(run -> run.project().length())
-                    .max()
-                    .orElse(0);
-            int phaseWidth = slowest.stream()
-                    .mapToInt(run -> String.valueOf(run.phase()).length())
-                    .max()
-                    .orElse(0);
             lines.add("");
-            lines.add("Slowest mojos:");
-            for (MojoRun run : slowest) {
-                lines.add("  " + pad(run.mojo(), mojoWidth)
-                        + "  " + pad(run.project(), projectWidth)
-                        + "  " + pad(run.phase() == null ? "-" : run.phase(), phaseWidth)
-                        + "  " + String.format(Locale.ROOT, "%7s", seconds(run.duration()))
-                        + (run.failed() ? "  FAILED" : ""));
-            }
+            lines.add(ansi.paint("Slowest mojos:", Ansi.BOLD));
+            lines.addAll(slowest(runs, top, ansi));
         }
         return lines;
     }
 
-    private static String legend(List<MojoRun> runs) {
+    /**
+     * Compares the time the mojos took, added together, with the time from the first starting to the last
+     * finishing, which is roughly what running them one at a time would cost against what running them in
+     * parallel did.
+     */
+    static String parallelism(List<MojoRun> runs, Ansi ansi) {
+        long mojoTime = runs.stream().mapToLong(MojoRun::duration).sum();
+        long first = runs.stream().mapToLong(MojoRun::start).min().orElse(0);
+        long last = runs.stream().mapToLong(MojoRun::end).max().orElse(0);
+        long span = Math.max(1, last - first);
+        long saved = Math.max(0, mojoTime - span);
+        return ansi.paint("Parallelism:", Ansi.BOLD)
+                + " "
+                + ansi.paint(String.format(Locale.ROOT, "%.1fx", mojoTime / (double) span), Ansi.BOLD, Ansi.GREEN)
+                + String.format(
+                        Locale.ROOT,
+                        " on average, peak %d mojos at once; %s of mojo time in %s, about %s (%d%%) less"
+                                + " than one at a time",
+                        peak(runs),
+                        seconds(mojoTime),
+                        seconds(span),
+                        seconds(saved),
+                        mojoTime == 0 ? 0 : Math.round(100.0 * saved / mojoTime));
+    }
+
+    private static int peak(List<MojoRun> runs) {
+        List<long[]> edges = edges(runs);
+        int active = 0;
+        int peak = 0;
+        for (long[] edge : edges) {
+            active += (int) edge[1];
+            peak = Math.max(peak, active);
+        }
+        return peak;
+    }
+
+    private static String legend(List<MojoRun> runs, Ansi ansi) {
         EnumSet<Category> used = EnumSet.noneOf(Category.class);
         runs.forEach(run -> used.add(run.category()));
-        StringBuilder legend = new StringBuilder("Legend:");
-        used.forEach(category -> legend.append(' ').append(category.letter()).append('=').append(category.label()));
-        legend.append(", UPPER CASE=mojos running at once, ").append(IDLE).append("=idle");
+        StringBuilder legend = new StringBuilder(ansi.paint("Legend:", Ansi.BOLD));
+        used.forEach(category -> legend.append(' ')
+                .append(ansi.paint(String.valueOf(category.letter()), category.colour()))
+                .append('=')
+                .append(category.label()));
+        legend.append(", UPPER CASE=mojos running at once, ")
+                .append(ansi.paint(String.valueOf(IDLE), Ansi.DIM))
+                .append("=idle");
         if (runs.stream().anyMatch(MojoRun::failed)) {
-            legend.append(", ").append(FAILED).append("=failed");
+            legend.append(", ").append(ansi.paint(String.valueOf(FAILED), Ansi.BOLD, Ansi.RED)).append("=failed");
         }
         return legend.toString();
+    }
+
+    private static List<String> slowest(List<MojoRun> runs, int top, Ansi ansi) {
+        List<MojoRun> slowest = runs.stream()
+                .sorted(Comparator.comparingLong(MojoRun::duration).reversed())
+                .limit(top)
+                .collect(Collectors.toList());
+        int mojoWidth = slowest.stream().mapToInt(run -> run.mojo().length()).max().orElse(0);
+        int projectWidth =
+                slowest.stream().mapToInt(run -> run.project().length()).max().orElse(0);
+        int phaseWidth = slowest.stream()
+                .mapToInt(run -> String.valueOf(run.phase()).length())
+                .max()
+                .orElse(0);
+        List<String> lines = new ArrayList<>();
+        for (MojoRun run : slowest) {
+            lines.add("  " + pad(run.mojo(), mojoWidth)
+                    + "  " + pad(run.project(), projectWidth)
+                    + "  " + ansi.paint(pad(run.phase() == null ? "-" : run.phase(), phaseWidth), run.category().colour())
+                    + "  " + String.format(Locale.ROOT, "%7s", seconds(run.duration()))
+                    + (run.failed() ? "  " + ansi.paint("FAILED", Ansi.BOLD, Ansi.RED) : ""));
+        }
+        return lines;
     }
 
     /** Tick labels, each starting at the column its time falls in. */
@@ -173,19 +225,26 @@ public final class TimelineRenderer {
         return bar.toString();
     }
 
-    /** The intervals in which two or more of the runs were executing. */
-    private static List<long[]> concurrentIntervals(List<MojoRun> runs) {
+    /**
+     * The start (+1) and end (-1) of each run in time order, with ends before starts at the same instant so
+     * that back-to-back runs do not count as overlapping.
+     */
+    private static List<long[]> edges(List<MojoRun> runs) {
         List<long[]> edges = new ArrayList<>();
         for (MojoRun run : runs) {
             edges.add(new long[] {run.start(), 1});
             edges.add(new long[] {run.end(), -1});
         }
-        // Ends sort before starts at the same instant, so back-to-back runs do not count as overlapping
         edges.sort(Comparator.<long[]>comparingLong(edge -> edge[0]).thenComparingLong(edge -> edge[1]));
+        return edges;
+    }
+
+    /** The intervals in which two or more of the runs were executing. */
+    private static List<long[]> concurrentIntervals(List<MojoRun> runs) {
         List<long[]> intervals = new ArrayList<>();
         int active = 0;
         long openedAt = 0L;
-        for (long[] edge : edges) {
+        for (long[] edge : edges(runs)) {
             int before = active;
             active += (int) edge[1];
             if (before < 2 && active >= 2) {

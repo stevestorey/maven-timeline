@@ -33,8 +33,15 @@ import org.slf4j.LoggerFactory;
  *       was run from
  * </ul>
  *
- * <p>{@code build.timeline.width} sets the line width, which otherwise follows the terminal, and {@code
- * build.timeline.top} the number of slowest mojos listed (10 by default, 0 for none).
+ * <p>Also:
+ *
+ * <ul>
+ *   <li>{@code build.timeline.top}: lists the slowest mojos after the timeline, 10 of them for {@code
+ *       -Dbuild.timeline.top} or the number given
+ *   <li>{@code build.timeline.width}: the line width, which otherwise follows the terminal
+ *   <li>{@code build.timeline.color}: {@code always}, {@code never} or, by default, {@code auto}, which
+ *       colours the timeline whenever Maven colours its own output
+ * </ul>
  */
 @Named
 @Singleton
@@ -44,6 +51,7 @@ public class BuildTimelineSpy extends AbstractEventSpy {
     static final String TRACE = "build.timeline.trace";
     static final String WIDTH = "build.timeline.width";
     static final String TOP = "build.timeline.top";
+    static final String COLOUR = "build.timeline.color";
 
     /** The width of the {@code [INFO] } prefix Maven adds to each line. */
     private static final int LOG_PREFIX_WIDTH = 7;
@@ -89,7 +97,6 @@ public class BuildTimelineSpy extends AbstractEventSpy {
             this.start = start;
         }
     }
-
 
     private final Map<Key, Started> running = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<MojoRun> finished = new ConcurrentLinkedQueue<>();
@@ -162,7 +169,7 @@ public class BuildTimelineSpy extends AbstractEventSpy {
 
         String enabled = property(ENABLED);
         if (enabled != null && !"false".equalsIgnoreCase(enabled)) {
-            log(TimelineRenderer.render(runs, total, width() - LOG_PREFIX_WIDTH, intProperty(TOP, DEFAULT_TOP)));
+            log(TimelineRenderer.render(runs, total, width() - LOG_PREFIX_WIDTH, top(), colour()));
         }
         String trace = property(TRACE);
         if (trace != null && !trace.trim().isEmpty()) {
@@ -215,10 +222,30 @@ public class BuildTimelineSpy extends AbstractEventSpy {
         }
     }
 
+    /** The number of slowest mojos to list: none unless the property is set, and 10 when it has no value. */
+    private int top() {
+        String value = property(TOP);
+        if (value == null || "false".equalsIgnoreCase(value.trim())) {
+            return 0;
+        }
+        return value.trim().isEmpty() || "true".equalsIgnoreCase(value.trim()) ? DEFAULT_TOP : intProperty(TOP, DEFAULT_TOP);
+    }
+
+    private boolean colour() {
+        String value = property(COLOUR);
+        if ("always".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("never".equalsIgnoreCase(value)) {
+            return false;
+        }
+        return Terminal.colour();
+    }
+
     private int width() {
         int width = intProperty(WIDTH, 0);
         if (width <= 0) {
-            width = TerminalWidth.detect();
+            width = Terminal.width();
         }
         return width > 0 ? width : DEFAULT_WIDTH;
     }
