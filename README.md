@@ -48,6 +48,23 @@ mvn package
 
 This builds `target/maven-timeline.jar`.
 
+## Releasing
+
+Publishing a GitHub Release with a tag such as `v1.2.0` runs the release workflow, which builds
+version 1.2.0, signs it and uploads it to Maven Central through the
+[Central Portal](https://central.sonatype.com). The upload then waits under Deployments in the
+Portal to be checked and published; setting `central.autoPublish` to `true` in `pom.xml` publishes
+it straight away instead. A version on Maven Central can never be changed or removed.
+
+The workflow needs these secrets in the `maven-central-release` environment
+(Settings > Environments), which should only allow deployments from `v*` tags:
+
+| Secret | Value |
+|---|---|
+| `CENTRAL_TOKEN_USERNAME`, `CENTRAL_TOKEN_PASSWORD` | A Central Portal user token |
+| `GPG_PRIVATE_KEY` | The ASCII-armoured private signing key, whose public key is on a public keyserver |
+| `GPG_PASSPHRASE` | Its passphrase |
+
 ## Adding it to a project
 
 Copy the jar into the project's `.mvn/ext` directory and add this line to `.mvn/maven.config`:
