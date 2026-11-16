@@ -89,10 +89,10 @@ public class BuildTimelineSpy extends AbstractEventSpy {
     }
 
     private static final class Started {
-        private final String thread;
+        private final long thread;
         private final long start;
 
-        Started(String thread, long start) {
+        Started(long thread, long start) {
             this.thread = thread;
             this.start = start;
         }
@@ -123,7 +123,7 @@ public class BuildTimelineSpy extends AbstractEventSpy {
             case MojoStarted:
                 if (recording) {
                     running.put(
-                            key(executionEvent), new Started(Thread.currentThread().getName(), now - origin));
+                            key(executionEvent), new Started(Thread.currentThread().getId(), now - origin));
                 }
                 break;
             case MojoSucceeded:
@@ -169,7 +169,8 @@ public class BuildTimelineSpy extends AbstractEventSpy {
 
         String enabled = property(ENABLED);
         if (enabled != null && !"false".equalsIgnoreCase(enabled)) {
-            log(TimelineRenderer.render(runs, total, width() - LOG_PREFIX_WIDTH, top(), colour()));
+            log(TimelineRenderer.render(
+                    runs, total, session.getRequest().getDegreeOfConcurrency(), width() - LOG_PREFIX_WIDTH, top(), colour()));
         }
         String trace = property(TRACE);
         if (trace != null && !trace.trim().isEmpty()) {

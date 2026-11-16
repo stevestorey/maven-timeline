@@ -33,11 +33,13 @@ public final class TimelineRenderer {
     /**
      * @param runs the mojo executions, with times relative to the start of the build
      * @param total the length of the build in nanoseconds
+     * @param threads the number of threads the build was allowed to use, from {@code -T}
      * @param width the number of characters available for each line
      * @param top the number of slowest mojos to list, or 0 for none
      * @param colour whether to colour the output with ANSI escape sequences
      */
-    public static List<String> render(List<MojoRun> runs, long total, int width, int top, boolean colour) {
+    public static List<String> render(
+            List<MojoRun> runs, long total, int threads, int width, int top, boolean colour) {
         List<String> lines = new ArrayList<>();
         if (runs.isEmpty() || total <= 0) {
             return lines;
@@ -46,7 +48,6 @@ public final class TimelineRenderer {
         Map<String, List<MojoRun>> projects = runs.stream()
                 .sorted(Comparator.comparingLong(MojoRun::start))
                 .collect(Collectors.groupingBy(MojoRun::project, LinkedHashMap::new, Collectors.toList()));
-        long threads = runs.stream().map(MojoRun::thread).distinct().count();
 
         int nameWidth = Math.max(
                 6,

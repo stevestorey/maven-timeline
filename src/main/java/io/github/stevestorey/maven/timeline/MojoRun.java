@@ -8,7 +8,7 @@ public final class MojoRun {
     private final String project;
     private final String mojo;
     private final String phase;
-    private final String thread;
+    private final long thread;
     private final long start;
     private final long end;
     private final boolean failed;
@@ -17,12 +17,13 @@ public final class MojoRun {
      * @param project the artifactId of the project the mojo ran for
      * @param mojo the mojo as {@code prefix:goal (executionId)}
      * @param phase the lifecycle phase the execution is bound to, or {@code null} for a goal invoked directly
-     * @param thread the name of the thread the mojo ran on
+     * @param thread the id of the thread the mojo ran on; Maven renames its builder threads, so names do not
+     *     identify them
      * @param start nanoseconds since the start of the build
      * @param end nanoseconds since the start of the build
      * @param failed whether the mojo failed
      */
-    public MojoRun(String project, String mojo, String phase, String thread, long start, long end, boolean failed) {
+    public MojoRun(String project, String mojo, String phase, long thread, long start, long end, boolean failed) {
         this.project = project;
         this.mojo = mojo;
         this.phase = phase;
@@ -44,7 +45,7 @@ public final class MojoRun {
         return phase;
     }
 
-    public String thread() {
+    public long thread() {
         return thread;
     }
 
@@ -81,13 +82,13 @@ public final class MojoRun {
             return false;
         }
         MojoRun other = (MojoRun) o;
-        return start == other.start
+        return thread == other.thread
+                && start == other.start
                 && end == other.end
                 && failed == other.failed
                 && Objects.equals(project, other.project)
                 && Objects.equals(mojo, other.mojo)
-                && Objects.equals(phase, other.phase)
-                && Objects.equals(thread, other.thread);
+                && Objects.equals(phase, other.phase);
     }
 
     @Override

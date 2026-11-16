@@ -11,7 +11,7 @@ class TimelineRendererTest {
     private static final long S = 1_000_000_000L;
 
     private static MojoRun run(String project, String phase, long from, long to) {
-        return new MojoRun(project, "x:y (" + phase + ")", phase, "t1", from * S, to * S, false);
+        return new MojoRun(project, "x:y (" + phase + ")", phase, 1, from * S, to * S, false);
     }
 
     @Test
@@ -39,7 +39,7 @@ class TimelineRendererTest {
 
     @Test
     void marksFailedMojos() {
-        var runs = List.of(new MojoRun("app", "x:y (t)", "test", "t1", 0, 2 * S, true));
+        var runs = List.of(new MojoRun("app", "x:y (t)", "test", 1, 0, 2 * S, true));
 
         assertEquals("!!", TimelineRenderer.bar(runs, 0, 2 * S, 2 * S, 2));
     }
@@ -62,7 +62,7 @@ class TimelineRendererTest {
     void rendersRowsInStartOrderAndSlowestMojos() {
         var runs = List.of(run("app", "test", 3, 9), run("lib", "compile", 0, 3));
 
-        var lines = TimelineRenderer.render(runs, 10 * S, 60, 1, false);
+        var lines = TimelineRenderer.render(runs, 10 * S, 1, 60, 1, false);
 
         assertTrue(lines.get(0).startsWith("Build timeline: 10.0 s wall, 1 thread, 2 mojos"), lines.get(0));
         assertTrue(lines.get(4).startsWith("lib "), lines.get(4));
@@ -71,10 +71,23 @@ class TimelineRendererTest {
     }
 
     @Test
+    void reportsTheThreadsTheBuildWasGivenRatherThanThreadsSeen() {
+        // Three threads ran mojos, but the build was only given two at a time
+        var runs = List.of(
+                new MojoRun("a", "x:y (compile)", "compile", 1, 0, S, false),
+                new MojoRun("b", "x:y (compile)", "compile", 2, 0, S, false),
+                new MojoRun("c", "x:y (compile)", "compile", 3, S, 2 * S, false));
+
+        var lines = TimelineRenderer.render(runs, 2 * S, 2, 60, 0, false);
+
+        assertTrue(lines.get(0).startsWith("Build timeline: 2.0 s wall, 2 threads, 3 mojos"), lines.get(0));
+    }
+
+    @Test
     void listsSlowestMojosOnlyWhenAsked() {
         var runs = List.of(run("lib", "compile", 0, 3));
 
-        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 0, false).stream()
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 1, 60, 0, false).stream()
                 .noneMatch(line -> line.contains("Slowest")));
     }
 
@@ -93,9 +106,9 @@ class TimelineRendererTest {
     void coloursOnlyWhenEnabled() {
         var runs = List.of(run("lib", "compile", 0, 3));
 
-        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 1, false).stream()
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 1, 60, 1, false).stream()
                 .noneMatch(line -> line.contains("\u001b")));
-        assertTrue(TimelineRenderer.render(runs, 4 * S, 60, 1, true).stream()
+        assertTrue(TimelineRenderer.render(runs, 4 * S, 1, 60, 1, true).stream()
                 .allMatch(line -> line.isEmpty() || line.contains("\u001b[")));
     }
 
