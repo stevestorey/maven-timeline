@@ -75,7 +75,7 @@ project, add it to the project's `.mvn/extensions.xml`, creating the file if the
   <extension>
     <groupId>io.github.stevestorey.maven</groupId>
     <artifactId>maven-timeline</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
   </extension>
 </extensions>
 ```
@@ -86,11 +86,11 @@ records nothing until it is turned on (see [Turning it on](#turning-it-on)).
 ### Without changing a project
 
 To try it on a project without touching its files, download the jar from
-[Maven Central](https://repo1.maven.org/maven2/io/github/stevestorey/maven/maven-timeline/0.1.0/maven-timeline-0.1.0.jar),
+[Maven Central](https://repo1.maven.org/maven2/io/github/stevestorey/maven/maven-timeline/0.1.1/maven-timeline-0.1.1.jar),
 or build it yourself, and pass its path on the command line:
 
 ```
-mvn verify -Dmaven.ext.class.path=/path/to/maven-timeline-0.1.0.jar -Dbuild.timeline
+mvn verify -Dmaven.ext.class.path=/path/to/maven-timeline-0.1.1.jar -Dbuild.timeline
 ```
 
 The jar can also be kept in the project's `.mvn/ext` directory and loaded with this line in
